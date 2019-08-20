@@ -125,6 +125,11 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
 
       const operation_history_object& op = *o_op;
 
+      auto is_par_account = [&](const account_id_type& acc) -> bool {
+        const account_object *o = db.find(acc);
+	return (o != nullptr && ( o->registrar.instance == 150830 || o->registrar.instance == 151476 ));
+      };
+
       // get the set of accounts this operation applies to
       flat_set<account_id_type> impacted;
       vector<authority> other;
@@ -145,7 +150,7 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
       //    whether need to create oho if _max_ops_per_account > 0 and _partial_operations == true
 
       // for each operation this account applies to that is in the config link it into the history
-      if( _tracked_accounts.size() == 0 ) // tracking all accounts
+      if( false ) // tracking all accounts
       {
          // if tracking all accounts, when impacted is not empty (although it will always be),
          //    still need to create oho if _max_ops_per_account > 0 and _partial_operations == true
@@ -177,9 +182,9 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
             // Note: the check above is for better performance, when the db is not clean,
             //       it breaks consistency of account_stats.total_ops and removed_ops and most_recent_op,
             //       but it ensures it's safe to remove old entries in add_account_history(...)
-            for( auto account_id : _tracked_accounts )
+            for( auto account_id : impacted )
             {
-               if( impacted.find( account_id ) != impacted.end() )
+               if( is_par_account(account_id) )
                {
                   if (!oho.valid()) { oho = create_oho(); }
                   // add history
