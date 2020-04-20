@@ -192,6 +192,16 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
                }
             }
          }
+
+        //PAR transfer (credit / token)
+        if( op.op.which() == operation::tag< transfer_operation >::value ) {
+            const auto& top = op.op.get<transfer_operation>();
+            if(top.amount.asset_id.instance == 1237 || top.amount.asset_id.instance == 1236) {
+               if (!oho.valid()) { oho = create_oho(); }
+               add_account_history( GRAPHENE_RELAXED_COMMITTEE_ACCOUNT, oho->id );
+            }
+        }
+
       }
       if (_partial_operations && ! oho.valid())
          skip_oho_id();
@@ -215,7 +225,7 @@ void account_history_plugin_impl::add_account_history( const account_id_type acc
    });
    // remove the earliest account history entry if too many
    // _max_ops_per_account is guaranteed to be non-zero outside
-   if( stats_obj.total_ops - stats_obj.removed_ops > _max_ops_per_account )
+   if( stats_obj.total_ops - stats_obj.removed_ops > _max_ops_per_account && account_id != GRAPHENE_RELAXED_COMMITTEE_ACCOUNT )
    {
       // look for the earliest entry
       const auto& his_idx = db.get_index_type<account_transaction_history_index>();
