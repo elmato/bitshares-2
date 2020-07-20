@@ -126,6 +126,11 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
 
       const operation_history_object& op = *o_op;
 
+      auto is_par_account = [&](const account_id_type& acc) -> bool {
+        const account_object *o = db.find(acc);
+	      return (o != nullptr && ( o->registrar.instance == 150830 || o->registrar.instance == 151476 ));
+      };
+
       // get the set of accounts this operation applies to
       flat_set<account_id_type> impacted;
       vector<authority> other;
@@ -149,7 +154,7 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
       //    whether need to create oho if _max_ops_per_account > 0 and _partial_operations == true
 
       // for each operation this account applies to that is in the config link it into the history
-      if( _tracked_accounts.size() == 0 ) // tracking all accounts
+      if( false ) // tracking all accounts
       {
          // if tracking all accounts, when impacted is not empty (although it will always be),
          //    still need to create oho if _max_ops_per_account > 0 and _partial_operations == true
@@ -181,9 +186,9 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
             // Note: the check above is for better performance, when the db is not clean,
             //       it breaks consistency of account_stats.total_ops and removed_ops and most_recent_op,
             //       but it ensures it's safe to remove old entries in add_account_history(...)
-            for( auto account_id : _tracked_accounts )
+            for( auto account_id : impacted )
             {
-               if( impacted.find( account_id ) != impacted.end() )
+               if( is_par_account(account_id) )
                {
                   if (!oho.valid()) { oho = create_oho(); }
                   // add history
@@ -191,6 +196,32 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
                }
             }
          }
+
+        //PAR transfer (credit / token)
+        if( op.op.which() == operation::tag< transfer_operation >::value ) {
+            const auto& top = op.op.get<transfer_operation>();
+            if(top.amount.asset_id.instance == 1237 ||
+               top.amount.asset_id.instance == 1236 ||
+               top.amount.asset_id.instance == 1319 ||
+               top.amount.asset_id.instance == 1322 ||
+               top.amount.asset_id.instance == 1320) {
+               if (!oho.valid()) { oho = create_oho(); }
+               add_account_history( GRAPHENE_RELAXED_COMMITTEE_ACCOUNT, oho->id );
+            }
+        }
+
+        if( op.op.which() == operation::tag< asset_issue_operation >::value ) {
+            const auto& top = op.op.get<asset_issue_operation>();
+            if(top.asset_to_issue.asset_id.instance == 1237 ||
+               top.asset_to_issue.asset_id.instance == 1236 ||
+               top.asset_to_issue.asset_id.instance == 1319 ||
+               top.asset_to_issue.asset_id.instance == 1322 ||
+               top.asset_to_issue.asset_id.instance == 1320) {
+               if (!oho.valid()) { oho = create_oho(); }
+               add_account_history( GRAPHENE_RELAXED_COMMITTEE_ACCOUNT, oho->id );
+            }
+        }
+
       }
       if (_partial_operations && ! oho.valid())
          skip_oho_id();
@@ -214,7 +245,7 @@ void account_history_plugin_impl::add_account_history( const account_id_type acc
    });
    // remove the earliest account history entry if too many
    // _max_ops_per_account is guaranteed to be non-zero outside
-   if( stats_obj.total_ops - stats_obj.removed_ops > _max_ops_per_account )
+   if( stats_obj.total_ops - stats_obj.removed_ops > _max_ops_per_account && account_id != GRAPHENE_RELAXED_COMMITTEE_ACCOUNT )
    {
       // look for the earliest entry
       const auto& his_idx = db.get_index_type<account_transaction_history_index>();
